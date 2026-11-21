@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline Pulse</title>
+<meta name="description" content="Upload a CRM export and get the weekly sales review: new pipeline, wins, forecast against target, deals that need attention, and a summary to paste.">
+<meta name="theme-color" content="#5b3fa0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b3fa0'/%3E%3Cpath d='M5 18h5l3-8 4 13 3-7h7' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,600;7..72,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css?v=1">
+<style>
+:root{--accent:#5b3fa0;--soft:#efeaf8}
+.stat .d{font-size:12.5px;margin-top:4px;font-weight:600}
+.stat .d.up{color:#2f7a5b}.stat .d.down{color:var(--warn)}.stat .d.flat{color:var(--faint)}
+.weeks{display:grid;grid-template-columns:repeat(12,1fr);gap:6px;align-items:end;height:180px;margin-top:16px}
+.weeks .w{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;font-size:11px;color:var(--faint)}
+.weeks .w .pair{display:flex;gap:2px;align-items:flex-end;width:100%;justify-content:center}
+.weeks .w .pair i{display:block;width:44%;max-width:16px;border-radius:3px 3px 0 0;min-height:1px}
+.weeks .w.sel span{color:var(--accent);font-weight:700}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13.5px;color:var(--muted);margin-top:12px}
+.legend span::before{content:"";display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;background:var(--c)}
+.fc{margin-top:14px}
+.fc .track{height:22px;border-radius:8px;background:#eeebe5;overflow:hidden;display:flex}
+.fc .track i{display:block;height:100%}
+.fc .marks{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-top:6px;flex-wrap:wrap;gap:6px}
+.hbar{display:grid;grid-template-columns:120px 1fr 120px;gap:10px;align-items:center;font-size:14px;margin-top:8px}
+.hbar .t{height:14px;border-radius:7px;background:#eeebe5;overflow:hidden}
+.hbar .t i{display:block;height:100%;background:var(--accent)}
+.hbar .n{text-align:right;font-variant-numeric:tabular-nums}
+.tbl{overflow-x:auto;margin-top:10px}
+.why{font-size:12.5px;color:var(--warn);font-weight:600}
+.map{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted);margin-top:12px}
+.drop.on{border-color:var(--accent);background:var(--soft)}
+.prev{font-size:13px}
+.prev td,.prev th{padding:6px 5px;white-space:nowrap}
+.probs{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+@media (max-width:600px){.weeks{grid-template-columns:repeat(8,1fr)}.weeks .w:nth-child(-n+4){display:none}.tbl th{white-space:normal}.hbar{grid-template-columns:90px 1fr 92px;font-size:13px}.map{grid-template-columns:1fr}.weeks{gap:3px}.hide-sm-col{display:none}th,td{font-size:13.5px;padding:8px 4px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <a class="brand" href="./"><i><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 9h3l1.5-4 2 6.5 1.5-3.5h5" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></i>Pipeline Pulse</a>
+  <nav><a class="hide-sm" href="https://github.com/costasxeras-stack/pipeline-pulse">GitHub</a><a href="https://kostasxeras.com/">Portfolio</a></nav>
+</div></header>
+<div class="tabs" role="tablist" aria-label="Sections"><div class="wrap">
+  <button role="tab" data-view="week" aria-selected="true">This week</button>
+  <button role="tab" data-view="pipe" aria-selected="false">Pipeline</button>
+  <button role="tab" data-view="att" aria-selected="false">Needs attention</button>
+  <button role="tab" data-view="team" aria-selected="false">Team</button>
+  <button role="tab" data-view="data" aria-selected="false">Data and settings</button>
+</div></div>
+
+<main class="wrap">
+  <div class="banner" id="sample-b" hidden><span>You are looking at a made-up sample pipeline, not real data.</span><button class="btn small" type="button" id="sample-clear">Remove sample</button></div>
+  <section class="card" id="empty" hidden>
+    <h2>Start with your data</h2>
+    <p class="sub">Upload a deals export from your CRM (CSV), or look around with a made-up sample pipeline. Nothing leaves your browser.</p>
+    <div class="row"><button class="btn primary" type="button" id="go-data">Upload a CSV</button><button class="btn" type="button" id="go-sample">Load the sample pipeline</button></div>
+  </section>
+
+  <!-- WEEK -->
+  <section data-panel="week">
+    <div class="intro"><h1>The weekly sales review, in one page.</h1><p>What came in, what closed, where the quarter stands, and the summary to paste into the team channel.</p></div>
+    <div class="row" style="margin-top:4px"><label for="wk" style="margin:0">Week</label><select id="wk" style="max-width:260px"></select></div>
+    <div class="stats" id="kpis"></div>
+    <section class="card"><h2>Recent weeks</h2><p class="sub">Value of new deals created and deals won, by week.</p><div class="weeks" id="weeks"></div><div class="legend"><span style="--c:#c9bde6">Created</span><span style="--c:var(--accent)">Won</span></div></section>
+    <section class="card"><h2>Quarter forecast <small id="qlabel"></small></h2><p class="sub">Won so far, plus open deals expected to close this quarter weighted by their stage.</p><div class="fc" id="fc"></div></section>
+    <section class="card"><h2>Summary to paste</h2><pre class="out" id="summary"></pre><div class="row"><button class="btn primary" type="button" id="copy">Copy summary</button></div></section>
+  </section>
+
+  <!-- PIPELINE -->
+  <section data-panel="pipe" hidden>
+    <div class="intro"><h1>Open pipeline by stage.</h1><p>Value, count and weighted value. Stage weights are set in Data and settings.</p></div>
+    <section class="card"><h2>By stage</h2><div id="stages"></div>
+      <div class="tbl"><table><thead><tr><th>Stage</th><th class="n">Deals</th><th class="n">Value</th><th class="n hide-sm-col">Weight</th><th class="n">Weighted</th></tr></thead><tbody id="stagetbl"></tbody></table></div></section>
+    <section class="card"><h2>Expected to close</h2><p class="sub">Open deals by month of their close date. "Overdue" have a close date in the past.</p><div id="months"></div></section>
+    <section class="card"><h2>Where deals come from <small>last 90 days</small></h2><div class="tbl"><table><thead><tr><th>Source</th><th class="n">Created</th><th class="n">Won</th><th class="n">Win rate</th><th class="n hide-sm-col">Won value</th></tr></thead><tbody id="sources"></tbody></table></div></section>
+  </section>
+
+  <!-- ATTENTION -->
+  <section data-panel="att" hidden>
+    <div class="intro"><h1>Deals that need attention.</h1><p>Open deals with no activity for a while, or a close date that has passed. Biggest first.</p></div>
+    <div class="row" style="margin-top:4px"><select id="attf" style="max-width:220px" aria-label="Filter"><option value="">All reasons</option><option value="quiet">No recent activity</option><option value="late">Close date passed</option></select><select id="atto" style="max-width:200px" aria-label="Owner"></select></div>
+    <section class="card"><h2 id="att-h">Deals</h2><div class="tbl"><table><thead><tr><th>Deal</th><th class="hide-sm-col">Owner</th><th>Stage</th><th class="n">Value</th><th>Why</th></tr></thead><tbody id="atttbl"></tbody></table></div></section>
+  </section>
+
+  <!-- TEAM -->
+  <section data-panel="team" hidden>
+    <div class="intro"><h1>By owner.</h1><p>Open and weighted pipeline, wins this quarter, win rate over the last 90 days, and alerts: open deals that need attention.</p></div>
+    <section class="card"><div class="tbl"><table><thead><tr><th>Owner</th><th class="n">Open</th><th class="n hide-sm-col">Weighted</th><th class="n">Won this quarter</th><th class="n">Win rate</th><th class="n">Alerts</th></tr></thead><tbody id="teamtbl"></tbody></table></div><p class="note">Win rate: won deals divided by won and lost deals closed in the last 90 days, by count.</p></section>
+  </section>
+
+  <!-- DATA -->
+  <section data-panel="data" hidden>
+    <div class="intro"><h1>Data and settings.</h1><p>Your CSV is read in this browser and kept here. Nothing is uploaded anywhere.</p></div>
+    <section class="card"><h2>Import a CSV</h2>
+      <p class="sub">One row per deal. Columns needed: deal name, stage, amount, created date. Helpful: owner, expected close date, last activity date, status, source. Headers are matched automatically, and you can fix the matching below.</p>
+      <div class="drop" id="drop">Drop a CSV file here, or <label class="btn small" style="margin:0 0 0 4px;display:inline-flex">choose a file<input type="file" id="file" accept=".csv,text/csv" hidden></label></div>
+      <div id="mapping" hidden>
+        <h3 style="font:600 16px var(--body);margin-top:16px">Match the columns <small class="note" id="rowsfound"></small></h3>
+        <div class="map" id="mapf"></div>
+        <label for="dayfirst">Dates like 03/04/2026 mean</label><select id="dayfirst" style="max-width:320px"><option value="1">3 April (day first)</option><option value="0">March 4 (month first)</option></select>
+        <div class="tbl"><table class="prev" id="preview"></table></div>
+        <div class="row"><button class="btn primary" type="button" id="doimport">Import deals</button><button class="btn" type="button" id="cancelimport">Cancel</button><span class="note" id="importmsg" style="margin:0"></span></div>
+      </div>
+    </section>
+    <section class="card"><h2>Settings</h2>
+      <div class="grid3">
+        <div><label for="target">Quarter target</label><input type="number" id="target" min="0" step="1000"></div>
+        <div><label for="cur">Currency label</label><input type="text" id="cur" maxlength="4"></div>
+        <div><label for="quiet">Quiet after (days without activity)</label><input type="number" id="quiet" min="3" max="90"></div>
+      </div>
+      <label>Stage weights (chance to close, %)</label><div class="probs" id="probs"></div>
+      <div class="row"><button class="btn primary" type="button" id="savesettings">Save settings</button></div>
+    </section>
+    <section class="card"><h2>Your data</h2><p class="sub" id="datainfo"></p>
+      <div class="row"><button class="btn" type="button" id="sample">Load the sample pipeline</button><button class="btn" type="button" id="template">Download a CSV template</button><button class="btn danger" type="button" id="wipe">Delete all deals</button></div>
+    </section>
+  </section>
+</main>
+<footer><div class="wrap"><span>Pipeline Pulse v0.1.0 by <a href="https://kostasxeras.com/">Konstantinos Xeras</a>, built with Claude (Anthropic). Your data stays in this browser. <a href="https://github.com/costasxeras-stack/pipeline-pulse">Code and decisions on GitHub</a>.</span></div></footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+  var KEY = 'pipeline-pulse-v1', $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var DAY = 864e5;
+  var FIELDS = [
+    ['name', 'Deal name', true, ['deal name', 'deal', 'opportunity name', 'opportunity', 'name', 'title', 'account name', 'account']],
+    ['stage', 'Stage', true, ['stage', 'deal stage', 'pipeline stage', 'status stage']],
+    ['amount', 'Amount', true, ['amount', 'value', 'deal value', 'deal amount', 'opportunity amount', 'revenue', 'acv', 'arr']],
+    ['created', 'Created date', true, ['created date', 'create date', 'created', 'created at', 'date created', 'open date']],
+    ['owner', 'Owner', false, ['owner', 'deal owner', 'opportunity owner', 'sales rep', 'rep', 'assigned to', 'user']],
+    ['close', 'Expected or actual close date', false, ['close date', 'expected close date', 'closed date', 'close', 'closing date']],
+    ['activity', 'Last activity date', false, ['last activity date', 'last activity', 'last contacted', 'last modified date', 'updated at', 'last update']],
+    ['status', 'Status (open, won, lost)', false, ['status', 'outcome', 'result', 'is won', 'won']],
+    ['source', 'Source', false, ['source', 'lead source', 'channel', 'origin']]
+  ];
+  var S = load(), parsed = null, view = 'week';
+
+  function load() {
+    var d = { deals: [], stages: [], probs: {}, target: 500000, cur: 'EUR', quiet: 14 };
+    try { var v = JSON.parse(localStorage.getItem(KEY) || 'null'); if (v && Array.isArray(v.deals)) { for (var k in d) if (v[k] == null) v[k] = d[k]; return v; } } catch (e) {}
+    return d;
+  }
+  function store() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Too much data for this browser to keep. It works until you close the page.'); } }
+  function toast(t) { var el = $('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(function () { el.classList.remove('on'); }, 2400); }
+  function money(v) { var a = Math.abs(v), s = a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M' : a >= 1e4 ? Math.round(a / 1e3) + 'k' : Math.round(a).toLocaleString('en'); return (v < 0 ? '−' : '') + s + ' ' + S.cur; }
+  function pl(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+  function pct(x) { return isFinite(x) ? Math.round(x * 100) + '%' : '–'; }
+  function today() { var d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function weekStart(t) { var d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d.getTime(); }
+  function qStart(t) { var d = new Date(t); return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1).getTime(); }
+  function qEnd(t) { var d = new Date(qStart(t)); d.setMonth(d.getMonth() + 3); return d.getTime(); }
+  function fmtD(t) { return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); }
+  function open(d) { return d.status === 'open'; }
+  function prob(stage) { return S.probs[stage] != null ? S.probs[stage] / 100 : 0.3; }
+
+  // ---------- CSV
+  function parseCSV(text) {
+    text = text.replace(/^﻿/, '');
+    var first = text.split(/\r?\n/)[0] || '', counts = { ',': 0, ';': 0, '\t': 0 };
+    for (var c in counts) counts[c] = first.split(c).length - 1;
+    var delim = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
+    var rows = [], row = [], f = '', q = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === delim) { row.push(f); f = ''; }
+      else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(f); f = ''; if (row.some(function (x) { return x.trim(); })) rows.push(row); row = []; }
+      else f += ch;
+    }
+    row.push(f); if (row.some(function (x) { return x.trim(); })) rows.push(row);
+    return rows;
+  }
+  function norm(h) { return String(h).toLowerCase().replace(/[_\-.]/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function guess(headers) {
+    var m = {}, used = {};
+    FIELDS.forEach(function (f) {
+      var best = -1;
+      f[3].some(function (syn) { var i = headers.findIndex(function (h, k) { return !used[k] && norm(h) === syn; }); if (i > -1) { best = i; return true; } return false; });
+      if (best < 0) f[3].some(function (syn) { var i = headers.findIndex(function (h, k) { return !used[k] && norm(h).indexOf(syn) > -1; }); if (i > -1) { best = i; return true; } return false; });
+      if (best > -1) { m[f[0]] = best; used[best] = 1; }
+    });
+    return m;
+  }
+  function parseDate(s, dayFirst) {
+    s = String(s || '').trim(); if (!s) return null;
+    var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+    m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+    if (m) { var y = +m[3] < 100 ? 2000 + +m[3] : +m[3], a = +m[1], b = +m[2]; var dd = dayFirst ? a : b, mm = dayFirst ? b : a; if (mm > 12) { var t = dd; dd = mm; mm = t; } return new Date(y, mm - 1, dd).getTime(); }
+    var t2 = Date.parse(s); return isNaN(t2) ? null : new Date(new Date(t2).setHours(0, 0, 0, 0)).getTime();
+  }
+  function parseAmount(s) {
+    s = String(s || '').replace(/[^\d,.\-]/g, ''); if (!s) return NaN;
+    var lc = s.lastIndexOf(','), ld = s.lastIndexOf('.');
+    if (lc > ld) s = s.replace(/\./g, '').replace(',', '.'); else s = s.replace(/,/g, '');
+    return parseFloat(s);
+  }
+  function statusOf(raw, stage) {
+    var x = (String(raw || '') + ' ' + String(stage || '')).toLowerCase();
+    if (/\blost\b|closed lost|przegran/.test(x)) return 'lost';
+    if (/\bwon\b|closed won|wygran|^true\b/.test(x) || /^(yes|true|1)$/.test(String(raw || '').trim().toLowerCase())) return 'won';
+    return 'open';
+  }
+  function handleFile(f) {
+    if (!f) return; if (f.size > 8e6) { toast('That file is over 8 MB. Export fewer columns or a shorter period.'); return; }
+    var r = new FileReader();
+    r.onload = function () {
+      var rows = parseCSV(String(r.result)); if (rows.length < 2) { toast('No rows found in that file'); return; }
+      parsed = { headers: rows[0].map(function (h) { return h.trim(); }), rows: rows.slice(1) }; parsed.map = guess(parsed.headers);
+      $('mapping').hidden = false; $('rowsfound').textContent = parsed.rows.length + ' rows found'; drawMap();
+    };
+    r.readAsText(f);
+  }
+  function drawMap() {
+    var opts = '<option value="">Not in my file</option>' + parsed.headers.map(function (h, i) { return '<option value="' + i + '">' + esc(h || 'Column ' + (i + 1)) + '</option>'; }).join('');
+    $('mapf').innerHTML = FIELDS.map(function (f) { return '<div><label for="m-' + f[0] + '">' + f[1] + (f[2] ? '' : ' <span class="opt">(optional)</span>') + '</label><select id="m-' + f[0] + '" data-f="' + f[0] + '">' + opts + '</select></div>'; }).join('');
+    FIELDS.forEach(function (f) { $('m-' + f[0]).value = parsed.map[f[0]] != null ? parsed.map[f[0]] : ''; });
+    preview();
+  }
+  $('mapf').addEventListener('change', function (e) { var f = e.target.getAttribute('data-f'); parsed.map[f] = e.target.value === '' ? null : +e.target.value; preview(); });
+  $('dayfirst').addEventListener('change', preview);
+  function toDeals() {
+    var m = parsed.map, df = $('dayfirst').value === '1', out = [], bad = 0, get = function (r, k) { return m[k] != null ? r[m[k]] : ''; };
+    parsed.rows.forEach(function (r, i) {
+      var amt = parseAmount(get(r, 'amount')), cr = parseDate(get(r, 'created'), df), st = String(get(r, 'stage') || '').trim();
+      if (!isFinite(amt) || cr == null || !st) { bad++; return; }
+      var status = statusOf(get(r, 'status'), st), cl = parseDate(get(r, 'close'), df), ac = parseDate(get(r, 'activity'), df);
+      out.push({ id: 'd' + i, name: String(get(r, 'name') || 'Deal ' + (i + 1)).trim().slice(0, 80), owner: String(get(r, 'owner') || 'Unassigned').trim().slice(0, 40), stage: st.slice(0, 40), amount: amt, created: cr, close: cl, activity: ac, status: status, source: String(get(r, 'source') || 'Unknown').trim().slice(0, 40) });
+    });
+    return { deals: out, bad: bad };
+  }
+  function preview() {
+    var miss = FIELDS.filter(function (f) { return f[2] && parsed.map[f[0]] == null; }).map(function (f) { return f[1]; });
+    var t = toDeals(), sample = t.deals.slice(0, 5);
+    $('preview').innerHTML = '<thead><tr><th>Deal</th><th>Owner</th><th>Stage</th><th>Status</th><th class="n">Amount</th><th>Created</th><th>Close</th></tr></thead><tbody>' + sample.map(function (d) { return '<tr><td>' + esc(d.name) + '</td><td>' + esc(d.owner) + '</td><td>' + esc(d.stage) + '</td><td>' + d.status + '</td><td class="n">' + Math.round(d.amount).toLocaleString('en') + '</td><td>' + new Date(d.created).toLocaleDateString('en-GB') + '</td><td>' + (d.close ? new Date(d.close).toLocaleDateString('en-GB') : '–') + '</td></tr>'; }).join('') + '</tbody>';
+    $('importmsg').textContent = miss.length ? 'Still needed: ' + miss.join(', ') : t.deals.length + ' deals ready' + (t.bad ? ', ' + t.bad + ' rows skipped (missing amount, created date or stage)' : '');
+    $('doimport').disabled = !!miss.length || !t.deals.length;
+  }
+  $('doimport').addEventListener('click', function () {
+    var t = toDeals(); S.deals = t.deals; S.sample = false; S.stages = stagesFrom(S.deals); S.probs = {}; fillProbs(); $('wk').value = ''; store(); parsed = null; $('mapping').hidden = true;
+    toast(t.deals.length + ' deals imported'); show('week');
+  });
+  $('cancelimport').addEventListener('click', function () { parsed = null; $('mapping').hidden = true; });
+  $('file').addEventListener('change', function () { handleFile(this.files[0]); this.value = ''; });
+  var drop = $('drop');
+  ['dragover', 'dragenter'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('on'); }); });
+  ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('on'); }); });
+  drop.addEventListener('drop', function (e) { handleFile(e.dataTransfer.files[0]); });
+  function stagesFrom(deals) {
+    var first = {}; deals.forEach(function (d) { if (d.status === 'open' && first[d.stage] == null) first[d.stage] = 0; if (d.status === 'open') first[d.stage]++; });
+    var known = ['lead', 'new', 'prospect', 'qualif', 'discovery', 'demo', 'meeting', 'solution', 'proposal', 'quote', 'negotiat', 'contract', 'commit'];
+    return Object.keys(first).sort(function (a, b) { var ia = known.findIndex(function (k) { return a.toLowerCase().indexOf(k) > -1; }), ib = known.findIndex(function (k) { return b.toLowerCase().indexOf(k) > -1; }); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+  }
+  function fillProbs() { var n = S.stages.length; S.stages.forEach(function (s, i) { if (S.probs[s] == null) S.probs[s] = Math.round(10 + (i + 1) / (n + 1) * 70); }); }
+
+  // ---------- sample (made-up)
+  function sample() {
+    var seed = 7, rnd = function () { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    var owners = ['Ana', 'Ben', 'Chris', 'Dana', 'Eli'], stages = ['Lead', 'Qualified', 'Demo', 'Proposal', 'Negotiation'], sources = ['Inbound', 'Outbound', 'Partner', 'Event'];
+    var t0 = today(), deals = [];
+    for (var i = 0; i < 260; i++) {
+      var age = Math.floor(rnd() * 200), created = t0 - age * DAY, owner = owners[Math.floor(rnd() * 5)], src = sources[Math.floor(rnd() * 4)];
+      var amt = Math.round((6000 + rnd() * rnd() * 90000) / 500) * 500, cycle = 20 + Math.floor(rnd() * 70), status = 'open', stage, close, activity;
+      if (age > cycle) { var win = rnd() < (src === 'Partner' ? 0.42 : src === 'Inbound' ? 0.33 : 0.2) + (owner === 'Dana' ? 0.08 : 0); status = rnd() < 0.18 ? 'open' : (win ? 'won' : 'lost'); }
+      if (status === 'open') { stage = stages[Math.min(4, Math.floor(rnd() * 5 * Math.min(1, age / 60 + 0.2)))]; close = t0 + Math.floor((rnd() * 110 - 25)) * DAY; activity = t0 - Math.floor(rnd() * rnd() * 40) * DAY; }
+      else { stage = status === 'won' ? 'Closed won' : 'Closed lost'; close = created + cycle * DAY; activity = close; }
+      deals.push({ id: 's' + i, name: ['Northwind', 'Blue Harbor', 'Vela', 'Kestrel', 'Orchard', 'Mosaic', 'Granite', 'Lumen', 'Tidewater', 'Alder', 'Juniper', 'Copperline'][i % 12] + ' ' + ['renewal', 'expansion', 'pilot', 'new site', 'platform', 'add-on'][Math.floor(rnd() * 6)], owner: owner, stage: stage, amount: amt, created: created, close: close, activity: activity, status: status, source: src });
+    }
+    S.deals = deals; S.sample = true; S.stages = stages; S.probs = { Lead: 10, Qualified: 20, Demo: 35, Proposal: 55, Negotiation: 75 }; S.target = 1300000; S.cur = 'EUR'; store(); $('wk').value = '';
+  }
+
+  // ---------- views
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role=tab]'));
+  function show(v) {
+    view = v; tabs.forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-view') === v ? 'true' : 'false'); });
+    var has = S.deals.length > 0; $('empty').hidden = has || v === 'data'; $('sample-b').hidden = !S.sample;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-panel]'), function (p) { p.hidden = p.getAttribute('data-panel') !== v || (!has && v !== 'data'); });
+    if (has) { if (v === 'week') weekView(); if (v === 'pipe') pipeView(); if (v === 'att') attView(); if (v === 'team') teamView(); }
+    if (v === 'data') dataView(); window.scrollTo(0, 0);
+  }
+  tabs.forEach(function (b) { b.addEventListener('click', function () { show(b.getAttribute('data-view')); }); });
+  $('go-data').addEventListener('click', function () { show('data'); });
+  $('go-sample').addEventListener('click', function () { sample(); toast('Sample pipeline loaded'); show('week'); });
+  $('sample').addEventListener('click', function () { sample(); toast('Sample pipeline loaded'); show('week'); });
+  $('sample-clear').addEventListener('click', function () { S.deals = []; S.sample = false; store(); show('data'); toast('Sample removed'); });
+
+  function closedIn(a, b, st) { return S.deals.filter(function (d) { return d.status === st && d.close != null && d.close >= a && d.close < b; }); }
+  function createdIn(a, b) { return S.deals.filter(function (d) { return d.created >= a && d.created < b; }); }
+  function sum(l) { return l.reduce(function (s, d) { return s + d.amount; }, 0); }
+  function winRate(end) { var w = closedIn(end - 90 * DAY, end, 'won').length, l = closedIn(end - 90 * DAY, end, 'lost').length; return w + l ? w / (w + l) : NaN; }
+  function attention() {
+    var t = today(); return S.deals.filter(open).map(function (d) {
+      var why = []; if (d.activity != null && t - d.activity > S.quiet * DAY) why.push(['quiet', 'No activity for ' + Math.round((t - d.activity) / DAY) + ' days']);
+      if (d.close != null && d.close < t) why.push(['late', 'Close date passed ' + fmtD(d.close)]); return { d: d, why: why };
+    }).filter(function (x) { return x.why.length; }).sort(function (a, b) { return b.d.amount - a.d.amount; });
+  }
+  function weekView() {
+    var cur = weekStart(Date.now()), opts = [];
+    for (var i = 0; i < 12; i++) { var a = cur - i * 7 * DAY; opts.push('<option value="' + a + '">' + (i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of') + ' · ' + fmtD(a) + ' to ' + fmtD(a + 6 * DAY) + '</option>'); }
+    var sel = $('wk').value || String(cur); $('wk').innerHTML = opts.join(''); $('wk').value = sel;
+    var a0 = +sel, b0 = a0 + 7 * DAY, ap = a0 - 7 * DAY;
+    var nw = createdIn(a0, b0), np = createdIn(ap, a0), wn = closedIn(a0, b0, 'won'), wp = closedIn(ap, a0, 'won'), ln = closedIn(a0, b0, 'lost');
+    var wr = winRate(b0), wrp = winRate(a0);
+    var won90 = closedIn(b0 - 90 * DAY, b0, 'won'), cyc = won90.length ? won90.reduce(function (s, d) { return s + (d.close - d.created) / DAY; }, 0) / won90.length : NaN;
+    function delta(x, y, fmt) { if (!isFinite(x) || !isFinite(y)) return '<span class="d flat">–</span>'; var d = x - y; return '<span class="d ' + (Math.abs(d) < 1e-9 ? 'flat' : d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '+' : d < 0 ? '−' : '±') + fmt(Math.abs(d)) + ' vs week before</span>'; }
+    $('kpis').innerHTML = [
+      [money(sum(nw)), 'new pipeline, ' + pl(nw.length, 'deal'), delta(sum(nw), sum(np), money)],
+      [money(sum(wn)), 'won, ' + pl(wn.length, 'deal') + (ln.length ? ', ' + ln.length + ' lost' : ''), delta(sum(wn), sum(wp), money)],
+      [pct(wr), 'win rate, last 90 days', delta(wr * 100, wrp * 100, function (v) { return Math.round(v) + ' pts'; })],
+      [isFinite(cyc) ? Math.round(cyc) + ' days' : '–', 'from created to won, last 90 days', '<span class="d flat">' + pl(won90.length, 'won deal') + '</span>']
+    ].map(function (k) { return '<div class="stat"><b>' + k[0] + '</b><span>' + k[1] + '</span>' + k[2] + '</div>'; }).join('');
+    var weeks = []; for (var j = 11; j >= 0; j--) { var s0 = cur - j * 7 * DAY; weeks.push([s0, sum(createdIn(s0, s0 + 7 * DAY)), sum(closedIn(s0, s0 + 7 * DAY, 'won'))]); }
+    var mx = Math.max.apply(null, weeks.map(function (w) { return Math.max(w[1], w[2]); })) || 1;
+    $('weeks').innerHTML = weeks.map(function (w) { return '<div class="w' + (w[0] === a0 ? ' sel' : '') + '"><div class="pair"><i style="height:' + (w[1] / mx * 140) + 'px;background:#c9bde6" title="Created ' + money(w[1]) + '"></i><i style="height:' + (w[2] / mx * 140) + 'px;background:var(--accent)" title="Won ' + money(w[2]) + '"></i></div><span>' + new Date(w[0]).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric' }) + '</span></div>'; }).join('');
+    // forecast
+    var qs = qStart(Date.now()), qe = qEnd(Date.now()), wonQ = sum(closedIn(qs, qe, 'won'));
+    var inQ = S.deals.filter(function (d) { return open(d) && d.close != null && d.close < qe; });
+    var weighted = inQ.reduce(function (s, d) { return s + d.amount * prob(d.stage); }, 0), best = sum(inQ);
+    var tgt = S.target || 0, max = Math.max(tgt, wonQ + best) || 1, gap = tgt - wonQ - weighted;
+    $('qlabel').textContent = 'Q' + (Math.floor(new Date(qs).getMonth() / 3) + 1) + ' ' + new Date(qs).getFullYear() + ', ' + Math.max(0, Math.ceil((qe - Date.now()) / DAY)) + ' days left';
+    $('fc').innerHTML = '<div class="track" role="img" aria-label="Forecast against target"><i style="width:' + (wonQ / max * 100) + '%;background:var(--accent)"></i><i style="width:' + (weighted / max * 100) + '%;background:#a893db"></i><i style="width:' + (Math.max(0, best - weighted) / max * 100) + '%;background:#e3dcf3"></i></div>' +
+      (tgt ? '<div style="position:relative;height:0"><span style="position:absolute;left:calc(' + (tgt / max * 100) + '% - 1px);top:-22px;width:2px;height:22px;background:var(--ink)"></span></div>' : '') +
+      '<div class="marks"><span><b>' + money(wonQ) + '</b> won</span><span><b>' + money(weighted) + '</b> weighted open</span><span><b>' + money(best) + '</b> if every open deal closes</span><span>Target <b>' + money(tgt) + '</b></span></div>' +
+      '<p class="sub" style="margin-top:10px">' + (tgt ? (gap > 0 ? 'Expected to land ' + money(gap) + ' short of target. ' + (wonQ + best < tgt ? 'Even if every open deal closes, the quarter misses. New pipeline is the only fix.' : 'Closing more of the open pipeline than the stage weights expect would cover it.') : 'Expected to beat the target by ' + money(-gap) + '.') : 'Set a quarter target in Data and settings.') + '</p>' +
+      '<div class="legend"><span style="--c:var(--accent)">Won</span><span style="--c:#a893db">Open, weighted</span><span style="--c:#e3dcf3">Open, rest of value</span></div>';
+    // summary
+    var att = attention(), lines = [];
+    lines.push('Sales week ' + fmtD(a0) + ' to ' + fmtD(a0 + 6 * DAY) + (S.sample ? ' (sample data)' : ''));
+    lines.push('- New pipeline: ' + money(sum(nw)) + ' from ' + pl(nw.length, 'deal') + ' (week before: ' + money(sum(np)) + ')');
+    lines.push('- Won: ' + money(sum(wn)) + ' from ' + pl(wn.length, 'deal') + (wn.length ? ', biggest ' + wn.slice().sort(function (x, y) { return y.amount - x.amount; })[0].name : '') + '. Lost: ' + ln.length);
+    lines.push('- Win rate, last 90 days: ' + pct(wr));
+    if (tgt) lines.push('- Quarter: ' + money(wonQ) + ' won of ' + money(tgt) + ' target. Weighted forecast ' + money(wonQ + weighted) + (gap > 0 ? ', gap ' + money(gap) : ', on track'));
+    lines.push('- Needs attention: ' + pl(att.length, 'open deal') + ' worth ' + money(sum(att.map(function (x) { return x.d; }))) + (att.length ? '. Biggest: ' + att.slice(0, 3).map(function (x) { return x.d.name + ' (' + x.d.owner + ')'; }).join(', ') : ''));
+    $('summary').textContent = lines.join('\n');
+  }
+  $('wk').addEventListener('change', weekView);
+  $('copy').addEventListener('click', function () { (navigator.clipboard ? navigator.clipboard.writeText($('summary').textContent) : Promise.reject()).then(function () { toast('Copied'); }, function () { toast('Select the text and copy it'); }); });
+
+  function pipeView() {
+    var od = S.deals.filter(open), by = {}; od.forEach(function (d) { (by[d.stage] = by[d.stage] || []).push(d); });
+    var st = S.stages.filter(function (s) { return by[s]; }).concat(Object.keys(by).filter(function (s) { return S.stages.indexOf(s) < 0; }));
+    var mx = Math.max.apply(null, st.map(function (s) { return sum(by[s]); })) || 1;
+    $('stages').innerHTML = st.map(function (s) { return '<div class="hbar"><span>' + esc(s) + '</span><span class="t"><i style="width:' + (sum(by[s]) / mx * 100) + '%"></i></span><span class="n">' + money(sum(by[s])) + '</span></div>'; }).join('');
+    var tv = 0, tw = 0;
+    $('stagetbl').innerHTML = st.map(function (s) { var v = sum(by[s]), w = v * prob(s); tv += v; tw += w; return '<tr><td>' + esc(s) + '</td><td class="n">' + by[s].length + '</td><td class="n">' + money(v) + '</td><td class="n hide-sm-col">' + Math.round(prob(s) * 100) + '%</td><td class="n">' + money(w) + '</td></tr>'; }).join('') +
+      '<tr><td><b>Total</b></td><td class="n"><b>' + od.length + '</b></td><td class="n"><b>' + money(tv) + '</b></td><td class="hide-sm-col"></td><td class="n"><b>' + money(tw) + '</b></td></tr>';
+    var t = today(), months = {}, order = [];
+    od.forEach(function (d) { var k = d.close == null ? 'No date' : d.close < t ? 'Overdue' : new Date(d.close).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }); if (!months[k]) { months[k] = []; order.push([k, d.close == null ? 9e15 : d.close < t ? 0 : new Date(new Date(d.close).getFullYear(), new Date(d.close).getMonth(), 1).getTime()]); } months[k].push(d); });
+    order.sort(function (a, b) { return a[1] - b[1]; }); var mm = Math.max.apply(null, order.map(function (o) { return sum(months[o[0]]); })) || 1;
+    $('months').innerHTML = order.map(function (o) { return '<div class="hbar"><span' + (o[0] === 'Overdue' ? ' style="color:var(--warn);font-weight:600"' : '') + '>' + o[0] + '</span><span class="t"><i style="width:' + (sum(months[o[0]]) / mm * 100) + '%' + (o[0] === 'Overdue' ? ';background:var(--warn)' : '') + '"></i></span><span class="n">' + money(sum(months[o[0]])) + ' · ' + months[o[0]].length + '</span></div>'; }).join('');
+    var end = Date.now(), srcs = {};
+    S.deals.forEach(function (d) { var s = srcs[d.source] = srcs[d.source] || { c: 0, w: 0, l: 0, wv: 0 }; if (d.created >= end - 90 * DAY) s.c++; if (d.close != null && d.close >= end - 90 * DAY && d.close <= end) { if (d.status === 'won') { s.w++; s.wv += d.amount; } if (d.status === 'lost') s.l++; } });
+    $('sources').innerHTML = Object.keys(srcs).sort(function (a, b) { return srcs[b].wv - srcs[a].wv; }).map(function (k) { var s = srcs[k]; return '<tr><td>' + esc(k) + '</td><td class="n">' + s.c + '</td><td class="n">' + s.w + '</td><td class="n">' + (s.w + s.l ? pct(s.w / (s.w + s.l)) : '–') + '</td><td class="n hide-sm-col">' + money(s.wv) + '</td></tr>'; }).join('');
+  }
+  function attView() {
+    var owners = {}; S.deals.forEach(function (d) { owners[d.owner] = 1; });
+    var cur = $('atto').value; $('atto').innerHTML = '<option value="">All owners</option>' + Object.keys(owners).sort().map(function (o) { return '<option' + (o === cur ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('');
+    var f = $('attf').value, o = $('atto').value;
+    var list = attention().filter(function (x) { return (!f || x.why.some(function (w) { return w[0] === f; })) && (!o || x.d.owner === o); });
+    $('att-h').textContent = pl(list.length, 'deal') + ', ' + money(sum(list.map(function (x) { return x.d; })));
+    $('atttbl').innerHTML = list.length ? list.slice(0, 100).map(function (x) { return '<tr><td>' + esc(x.d.name) + '</td><td class="hide-sm-col">' + esc(x.d.owner) + '</td><td>' + esc(x.d.stage) + '</td><td class="n">' + money(x.d.amount) + '</td><td>' + x.why.map(function (w) { return '<div class="why">' + w[1] + '</div>'; }).join('') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="empty">Nothing needs attention. ' + (S.deals.some(function (d) { return d.activity != null; }) ? '' : 'Your file has no last activity date, so only passed close dates are checked.') + '</td></tr>';
+  }
+  $('attf').addEventListener('change', attView); $('atto').addEventListener('change', attView);
+  function teamView() {
+    var qs = qStart(Date.now()), qe = qEnd(Date.now()), end = Date.now(), att = attention(), T = {};
+    S.deals.forEach(function (d) {
+      var t = T[d.owner] = T[d.owner] || { open: 0, w: 0, wonQ: 0, won: 0, lost: 0, att: 0 };
+      if (open(d)) { t.open += d.amount; t.w += d.amount * prob(d.stage); }
+      if (d.status === 'won' && d.close >= qs && d.close < qe) t.wonQ += d.amount;
+      if (d.close != null && d.close >= end - 90 * DAY && d.close <= end) { if (d.status === 'won') t.won++; if (d.status === 'lost') t.lost++; }
+    });
+    att.forEach(function (x) { T[x.d.owner].att++; });
+    $('teamtbl').innerHTML = Object.keys(T).sort(function (a, b) { return T[b].wonQ - T[a].wonQ; }).map(function (k) { var t = T[k]; return '<tr><td>' + esc(k) + '</td><td class="n">' + money(t.open) + '</td><td class="n hide-sm-col">' + money(t.w) + '</td><td class="n">' + money(t.wonQ) + '</td><td class="n">' + (t.won + t.lost ? pct(t.won / (t.won + t.lost)) : '–') + '</td><td class="n"' + (t.att ? ' style="color:var(--warn);font-weight:600"' : '') + '>' + t.att + '</td></tr>'; }).join('');
+  }
+  function dataView() {
+    $('target').value = S.target; $('cur').value = S.cur; $('quiet').value = S.quiet;
+    $('probs').innerHTML = S.stages.length ? S.stages.map(function (s) { return '<div><label style="margin:0 0 4px;font-weight:500">' + esc(s) + '</label><input type="number" min="0" max="100" data-p="' + esc(s) + '" value="' + (S.probs[s] != null ? S.probs[s] : 30) + '"></div>'; }).join('') : '<p class="empty">Import deals to set stage weights.</p>';
+    var n = S.deals.length;
+    $('datainfo').textContent = n ? n + ' deals' + (S.sample ? ' (made-up sample)' : '') + ', ' + S.deals.filter(open).length + ' open. Created between ' + new Date(Math.min.apply(null, S.deals.map(function (d) { return d.created; }))).toLocaleDateString('en-GB') + ' and ' + new Date(Math.max.apply(null, S.deals.map(function (d) { return d.created; }))).toLocaleDateString('en-GB') + '.' : 'No deals yet.';
+  }
+  $('savesettings').addEventListener('click', function () {
+    S.target = Math.max(0, +$('target').value || 0); S.cur = ($('cur').value || 'EUR').trim().slice(0, 4); S.quiet = Math.min(90, Math.max(3, Math.round(+$('quiet').value || 14)));
+    Array.prototype.forEach.call(document.querySelectorAll('[data-p]'), function (i) { S.probs[i.getAttribute('data-p')] = Math.min(100, Math.max(0, Math.round(+i.value || 0))); });
+    store(); toast('Settings saved');
+  });
+  $('template').addEventListener('click', function () {
+    var t = 'Deal name,Owner,Stage,Amount,Created date,Close date,Last activity date,Status,Source\nAcme platform,Ana,Proposal,24000,2026-09-14,2026-12-10,2026-11-12,Open,Inbound\nBeta renewal,Ben,Closed won,12000,2026-08-02,2026-10-20,2026-10-20,Won,Partner\n';
+    var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/csv' })); a.download = 'pipeline-template.csv'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  });
+  $('wipe').addEventListener('click', function () { if (this.getAttribute('data-sure') !== '1') { this.setAttribute('data-sure', '1'); this.textContent = 'Tap again to delete all deals'; return; } S.deals = []; S.sample = false; store(); this.removeAttribute('data-sure'); this.textContent = 'Delete all deals'; show('data'); toast('All deals deleted'); });
+
+  show(S.deals.length ? 'week' : 'week');
+})();
+</script>
+</body>
+</html>

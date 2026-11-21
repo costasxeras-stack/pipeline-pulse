@@ -1,0 +1,10 @@
+{
+  "name": "pipeline-pulse",
+  "version": "0.1.0",
+  "description": "Upload a CRM export and get the weekly sales review: new pipeline, wins, forecast against target, deals that need attention, and a summary to paste.",
+  "private": true,
+  "scripts": {
+    "serve": "python3 -m http.server 8000"
+  },
+  "license": "MIT"
+}

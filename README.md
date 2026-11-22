@@ -55,9 +55,9 @@ No usage data yet. These are the measures I would track, with targets to set aft
 2. Stage weights learned from the team's own history
 3. Week-over-week change per deal: what moved stage, what slipped
 
-## How it was built
+## My role
 
-I defined the problem, the users, the features and the decisions. Claude (Anthropic) was my engineering partner for the code. The idea started from an example in Justin McKelvey's list of vibe coding projects, which I turned into a full app with my own product choices. Screenshots use the app's made-up sample data.
+I defined the problem, the users, the features and the decisions. The idea started from an example in Justin McKelvey's list of project ideas, which I turned into a full app with my own product choices. Screenshots use the app's made-up sample data.
 
 ## Run it yourself
 
